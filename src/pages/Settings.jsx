@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useTheme } from '@/components/theme-provider';
-import Logo from '@/components/Logo';
+import Logo from '@/components/Logo.jsx';
 
 // Currencies
 const CURRENCIES = [
