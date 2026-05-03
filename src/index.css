@@ -1,0 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================= */
+/* 🌍 DESIGN TOKENS */
+/* ============================= */
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+    /* 🎨 Base Colors */
+    --background: 220 15% 97%;
+    --foreground: 0 0% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+
+    --primary: 206 100% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 10% 94%;
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 220 10% 94%;
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 220 10% 92%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 354 90% 41%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 120 80% 28%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 220 10% 90%;
+    --input: 220 10% 90%;
+    --ring: 206 100% 42%;
+
+    /* 📊 Charts */
+    --chart-1: 206 100% 42%;
+    --chart-2: 120 80% 28%;
+    --chart-3: 354 90% 41%;
+    --chart-4: 43 74% 52%;
+    --chart-5: 270 60% 55%;
+
+    --radius: 0.75rem;
+
+    /* 📱 Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 25%;
+    --sidebar-primary: 206 100% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 10% 95%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 220 10% 92%;
+    --sidebar-ring: 206 100% 42%;
+
+    /* 💰 Financial Mood */
+    --mood-positive: 120 70% 35%;
+    --mood-negative: 354 80% 50%;
+    --mood-neutral: 220 10% 50%;
+  }
+
+  .dark {
+    --background: 0 0% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 206 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 95%;
+
+    --destructive: 354 80% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 120 70% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 206 100% 50%;
+
+    --chart-1: 206 100% 50%;
+    --chart-2: 120 70% 38%;
+    --chart-3: 354 80% 48%;
+    --chart-4: 43 74% 58%;
+    --chart-5: 270 60% 60%;
+
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 206 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 206 100% 50%;
+
+    /* 💰 Mood (dark tuned) */
+    --mood-positive: 120 60% 45%;
+    --mood-negative: 354 70% 55%;
+    --mood-neutral: 220 10% 65%;
+  }
+}
+
+/* ============================= */
+/* 🧠 BASE STYLES */
+/* ============================= */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* ============================= */
+/* ✨ SMOOTH TRANSITIONS */
+/* ============================= */
+
+* {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    fill 0.25s ease,
+    stroke 0.25s ease;
+}
+
+/* ============================= */
+/* 🧊 GLASS / MODERN UI */
+/* ============================= */
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .dark .glass {
+    background: rgba(20, 20, 20, 0.6);
+  }
+
+  .card-elevated {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .dark .card-elevated {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}

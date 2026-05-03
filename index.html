@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0b2230" />
+
+  <!-- iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <!-- Default favicon (fallback = dark) -->
+  <link id="favicon" rel="icon" type="image/png" href="/icon-192.png" />
+
+  <title>CERO</title>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <!-- React -->
+  <script type="module" src="/src/main.jsx"></script>
+
+  <!-- 🌗 Auto Light/Dark Icon Switching -->
+  <script>
+    function setFavicon() {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const favicon = document.getElementById("favicon");
+
+      favicon.href = isDark
+        ? "/icon-192.png"          // dark
+        : "/icon-light-192.png";  // light
+    }
+
+    setFavicon();
+
+    window.matchMedia('(prefers-color-scheme: dark)')
+      .addEventListener('change', setFavicon);
+  </script>
+</body>
+</html>
