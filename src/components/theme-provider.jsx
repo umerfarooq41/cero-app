@@ -16,11 +16,26 @@ export function ThemeProvider({ children }) {
     const root = document.documentElement;
     const resolved = mode === "system" ? getSystemTheme() : mode;
 
-    // ✅ Tailwind ONLY cares about "dark"
+    // 🌗 Tailwind dark mode
     if (resolved === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
+    }
+
+    // 🔥 Favicon sync
+    const favicon = document.getElementById("favicon");
+    if (favicon) {
+      favicon.href =
+        resolved === "dark"
+          ? "/icon-dark.png"
+          : "/icon-light.png";
+    }
+
+    // 🎨 Optional: browser UI color (mobile)
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.content = resolved === "dark" ? "#0b2230" : "#ffffff";
     }
   };
 
@@ -28,7 +43,7 @@ export function ThemeProvider({ children }) {
     applyTheme(theme);
     localStorage.setItem("theme", theme);
 
-    // ✅ Listen to OS theme change
+    // Listen to OS theme change
     const media = window.matchMedia("(prefers-color-scheme: dark)");
 
     const listener = () => {
