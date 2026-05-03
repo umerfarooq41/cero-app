@@ -4,25 +4,38 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/hooks/useBudgetData';
 
 function SummaryCard({ label, icon: Icon, amount = 0, planned = 0, type, faded }) {
-  // ✅ Prevent undefined / NaN issues
   const safeAmount = Number(amount) || 0;
   const safePlanned = Number(planned) || 0;
 
-  // ✅ Fixed percentage logic
+  // ✅ Unified percentage logic (FIXED)
   const percentage =
-    type === 'income'
-      ? 100
-      : safePlanned > 0
-        ? Math.min((safeAmount / safePlanned) * 100, 100)
-        : 0;
+    safePlanned > 0
+      ? Math.min((safeAmount / safePlanned) * 100, 100)
+      : 0;
 
-  const isOver = safeAmount > safePlanned && safePlanned > 0;
+  // ✅ Over logic (income shouldn't be "bad")
+  const isOver =
+    type !== 'income' &&
+    safeAmount > safePlanned &&
+    safePlanned > 0;
 
   const colorMap = {
-    income: { bar: 'bg-[hsl(var(--success))]', text: 'text-[hsl(var(--success))]' },
-    expense: { bar: isOver ? 'bg-destructive' : 'bg-primary', text: isOver ? 'text-destructive' : 'text-primary' },
-    savings: { bar: 'bg-chart-4', text: 'text-chart-4' },
-    debt: { bar: 'bg-chart-3', text: 'text-chart-3' },
+    income: {
+      bar: 'bg-[hsl(var(--success))]',
+      text: 'text-[hsl(var(--success))]'
+    },
+    expense: {
+      bar: isOver ? 'bg-destructive' : 'bg-primary',
+      text: isOver ? 'text-destructive' : 'text-primary'
+    },
+    savings: {
+      bar: 'bg-chart-4',
+      text: 'text-chart-4'
+    },
+    debt: {
+      bar: 'bg-chart-3',
+      text: 'text-chart-3'
+    },
   };
 
   const colors = colorMap[type] || colorMap.expense;
@@ -49,8 +62,8 @@ function SummaryCard({ label, icon: Icon, amount = 0, planned = 0, type, faded }
         {formatCurrency(safeAmount)}
       </div>
 
-      {/* ✅ Always show for income OR when planned exists */}
-      {(safePlanned > 0 || type === 'income') && (
+      {/* Show progress only if planned exists */}
+      {safePlanned > 0 && (
         <>
           {/* Progress bar */}
           <div className="h-1.5 bg-secondary rounded-full overflow-hidden mb-1.5">
@@ -59,15 +72,23 @@ function SummaryCard({ label, icon: Icon, amount = 0, planned = 0, type, faded }
                 "h-full rounded-full transition-all duration-500",
                 colors.bar
               )}
-              style={{ width: `${percentage}%` }}
+              style={{
+                width: `${percentage}%`,
+                transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
             />
           </div>
 
           {/* Label */}
           <div className="text-[11px] text-muted-foreground tabular-nums">
-            {type === 'income'
-              ? 'Total income'
-              : `${Math.round(percentage)}% of ${formatCurrency(safePlanned)}`}
+            {safeAmount === 0
+              ? type === 'income'
+                ? 'Waiting for income'
+                : `0% of ${formatCurrency(safePlanned)}`
+              : isOver
+                ? `${formatCurrency(safeAmount - safePlanned)} over`
+                : `${Math.round(percentage)}% of ${formatCurrency(safePlanned)}`
+            }
           </div>
         </>
       )}
@@ -75,7 +96,12 @@ function SummaryCard({ label, icon: Icon, amount = 0, planned = 0, type, faded }
   );
 }
 
-export default function SummaryCards({ budget, savingsSpent = 0, debtSpent = 0, isEditMode }) {
+export default function SummaryCards({
+  budget,
+  savingsSpent = 0,
+  debtSpent = 0,
+  isEditMode
+}) {
   return (
     <div
       className={cn(
