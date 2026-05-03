@@ -24,7 +24,19 @@ export default function Logo({ size = 32, className = "" }) {
         strokeWidth="80"
         strokeLinecap="round"
         strokeDasharray="880 520"
+        style={{
+          animation: "spin 6s linear infinite",
+          transformOrigin: "center",
+        }}
       />
+
+      <style>
+        {`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </svg>
   );
 }
