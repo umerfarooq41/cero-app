@@ -1,0 +1,51 @@
+{
+  "name": "Account",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Account name"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "checking",
+        "savings",
+        "credit_card",
+        "cash",
+        "investment",
+        "loan",
+        "other"
+      ],
+      "description": "Account type"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "asset",
+        "liability"
+      ],
+      "description": "Asset or liability"
+    },
+    "balance": {
+      "type": "number",
+      "default": 0,
+      "description": "Current balance"
+    },
+    "icon": {
+      "type": "string"
+    },
+    "color": {
+      "type": "string"
+    },
+    "is_archived": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "name",
+    "type",
+    "category"
+  ]
+}

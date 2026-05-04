@@ -2,17 +2,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { format, subMonths } from 'date-fns';
 import { PencilLine, Copy, X, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import MonthSelector from '@/components/shared/MonthSelector';
 import LeftToAllocateBanner from '@/components/plan/LeftToAllocateBanner';
 import SummaryCards from '@/components/plan/SummaryCards';
 import UnifiedCategorySection from '@/components/plan/UnifiedCategorySection';
 import {
   useBudgetSummary,
+  useAllocations,
   useCategories,
-  formatCurrency,
 } from '@/hooks/useBudgetData';
+import { useCurrency } from '@/hooks/useCurrency';
 
 export default function Plan() {
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -20,145 +24,144 @@ export default function Plan() {
   const [editValues, setEditValues] = useState({});
   const [saving, setSaving] = useState(false);
 
+  const queryClient = useQueryClient();
+  const currency = useCurrency();
   const budget = useBudgetSummary(currentMonth);
   const { data: categories } = useCategories();
+  const { data: allocations } = useAllocations(currentMonth);
 
   const prevMonth = format(subMonths(new Date(currentMonth + '-01'), 1), 'yyyy-MM');
+  const { data: prevAllocations } = useAllocations(prevMonth);
 
-  // ✅ LOAD SAVED DATA WHEN MONTH CHANGES
-  useEffect(() => {
-    const saved = localStorage.getItem(`cero_allocations_${currentMonth}`);
-    if (saved) {
-      setEditValues(JSON.parse(saved));
-    } else {
-      setEditValues({});
-    }
-  }, [currentMonth]);
-
-  // ✅ ENTER EDIT MODE
+  // Seed editValues from current allocations when entering edit mode
   const enterEditMode = useCallback(() => {
-    const saved = localStorage.getItem(`cero_allocations_${currentMonth}`);
-
-    if (saved) {
-      setEditValues(JSON.parse(saved));
-    } else {
-      const initial = {};
-      categories.forEach(c => {
-        initial[c.id] = 0;
-      });
-      setEditValues(initial);
-    }
-
+    const initial = {};
+    allocations.forEach(a => { initial[a.category_id] = a.planned_amount || 0; });
+    // also seed zeros for categories not yet allocated
+    categories.forEach(c => {
+      if (!(c.id in initial)) initial[c.id] = 0;
+    });
+    setEditValues(initial);
     setIsEditMode(true);
-  }, [categories, currentMonth]);
+  }, [allocations, categories]);
 
   const cancelEdit = () => {
     setIsEditMode(false);
+    setEditValues({});
   };
 
-  // ✅ AUTO SAVE ON CHANGE
-  const onEditChange = useCallback((catId, value) => {
-    setEditValues(prev => {
-      const updated = { ...prev, [catId]: value };
-
-      localStorage.setItem(
-        `cero_allocations_${currentMonth}`,
-        JSON.stringify(updated)
-      );
-
-      return updated;
-    });
-  }, [currentMonth]);
-
-  // ✅ MANUAL SAVE (JUST UX)
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
+    const existing = {};
+    allocations.forEach(a => { existing[a.category_id] = a; });
 
-    localStorage.setItem(
-      `cero_allocations_${currentMonth}`,
-      JSON.stringify(editValues)
-    );
+    const promises = Object.entries(editValues).map(([catId, amount]) => {
+      if (existing[catId]) {
+        return base44.entities.BudgetAllocation.update(existing[catId].id, { planned_amount: amount });
+      }
+      if (amount > 0) {
+        return base44.entities.BudgetAllocation.create({ category_id: catId, month: currentMonth, planned_amount: amount });
+      }
+      return Promise.resolve();
+    });
 
-    setTimeout(() => {
-      setSaving(false);
-      setIsEditMode(false);
-      toast.success('Plan saved');
-    }, 300);
+    await Promise.all(promises);
+    queryClient.invalidateQueries({ queryKey: ['allocations'] });
+    setSaving(false);
+    setIsEditMode(false);
+    setEditValues({});
+    toast.success('Plan saved');
   };
 
-  // ✅ COPY FROM PREVIOUS MONTH
   const copyFromPrev = () => {
-    const prev = localStorage.getItem(`cero_allocations_${prevMonth}`);
-    if (!prev) {
-      toast.error('No data from previous month');
-      return;
-    }
-
-    const parsed = JSON.parse(prev);
-    setEditValues(parsed);
-
-    localStorage.setItem(
-      `cero_allocations_${currentMonth}`,
-      JSON.stringify(parsed)
-    );
-
+    const newValues = { ...editValues };
+    prevAllocations.forEach(a => { newValues[a.category_id] = a.planned_amount || 0; });
+    setEditValues(newValues);
     toast.success('Copied from last month');
   };
 
-  // 💡 CALCULATIONS
+  const onEditChange = useCallback((catId, value) => {
+    setEditValues(prev => ({ ...prev, [catId]: value }));
+  }, []);
+
+  // Live "left to allocate" in edit mode
   const sumEditType = (type) => {
     return categories
       .filter(c => c.type === type)
-      .reduce((sum, c) => sum + (editValues[c.id] || 0), 0);
+      .reduce((sum, c) => {
+        const subs = categories.filter(s => s.parent_id === c.id);
+        if (subs.length > 0 && !c.parent_id) return sum;
+        return sum + (editValues[c.id] || 0);
+      }, 0);
   };
 
   const editTotalIncome = isEditMode ? sumEditType('income') : budget.totalPlannedIncome;
   const editTotalExpenses = isEditMode ? sumEditType('expense') : 0;
   const editTotalSavings = isEditMode ? sumEditType('savings') : 0;
   const editTotalDebt = isEditMode ? sumEditType('debt') : 0;
-
   const leftToAllocate = isEditMode
     ? editTotalIncome - editTotalExpenses - editTotalSavings - editTotalDebt
     : budget.leftToAllocate;
 
   const totalIncomeDisplay = isEditMode ? editTotalIncome : budget.totalIncome;
 
-  // categories split
+  // prev values map for hints
+  const prevValuesMap = {};
+  prevAllocations.forEach(a => { prevValuesMap[a.category_id] = a.planned_amount || 0; });
+
   const allSubs = categories.filter(c => c.parent_id);
   const incomeCategories = categories.filter(c => c.type === 'income' && !c.parent_id);
   const expenseCategories = categories.filter(c => c.type === 'expense' && !c.parent_id);
   const savingsCategories = categories.filter(c => c.type === 'savings' && !c.parent_id);
   const debtCategories = categories.filter(c => c.type === 'debt' && !c.parent_id);
 
+  const savingsSpent = budget.transactions
+    .filter(t => { const cat = categories.find(c => c.id === t.category_id); return cat?.type === 'savings'; })
+    .reduce((s, t) => s + (t.amount || 0), 0);
+  const debtSpent = budget.transactions
+    .filter(t => { const cat = categories.find(c => c.id === t.category_id); return cat?.type === 'debt'; })
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
   return (
     <div className="max-w-3xl mx-auto px-4 pb-28">
-
-      {/* HEADER */}
+      {/* ── HEADER ── */}
       <div className="sticky top-0 z-30 pt-6 pb-2 bg-background/95 backdrop-blur-sm">
         <AnimatePresence mode="wait">
           {isEditMode ? (
-            <motion.div key="edit-header" className="flex justify-between">
-              <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                <X className="w-4 h-4" /> Cancel
+            <motion.div
+              key="edit-header"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center justify-between"
+            >
+              <Button variant="ghost" size="sm" onClick={cancelEdit} className="gap-1.5 text-muted-foreground">
+                <X className="w-4 h-4" />
+                Cancel
               </Button>
-
               <h1 className="text-base font-semibold">Edit Plan</h1>
-
-              <Button size="sm" onClick={handleSave}>
+              <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </motion.div>
           ) : (
-            <motion.div key="read-header" className="flex justify-between">
+            <motion.div
+              key="read-header"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center justify-between"
+            >
               <div>
-                <h1 className="text-2xl font-bold">Plan</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Plan</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Your monthly budget</p>
               </div>
-
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <MonthSelector currentMonth={currentMonth} onChange={setCurrentMonth} />
-
-                <Button variant="ghost" size="icon" onClick={enterEditMode}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={enterEditMode}>
                   <PencilLine className="w-4 h-4" />
                 </Button>
               </div>
@@ -167,74 +170,140 @@ export default function Plan() {
         </AnimatePresence>
       </div>
 
-      {/* BODY */}
-      <div className="space-y-4 pt-4">
-
+      {/* ── BODY ── */}
+      <motion.div
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18 }}
+        className="space-y-4 pt-4"
+      >
+        {/* Left to Allocate Banner */}
         <LeftToAllocateBanner
           leftToAllocate={leftToAllocate}
           totalIncome={totalIncomeDisplay}
           isEditMode={isEditMode}
+          currency={currency}
         />
 
-        {isEditMode && (
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={copyFromPrev}>
-              <Copy className="w-4 h-4" /> Copy last month
-            </Button>
-          </div>
-        )}
+        {/* Edit mode controls */}
+        <AnimatePresence>
+          {isEditMode && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex justify-end overflow-hidden"
+            >
+              <Button variant="outline" size="sm" onClick={copyFromPrev} className="gap-2 text-xs">
+                <Copy className="w-3.5 h-3.5" />
+                Copy from last month
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <SummaryCards budget={budget} isEditMode={isEditMode} />
+        {/* Summary Cards — visible in both modes, faded in edit */}
+        <SummaryCards
+          budget={budget}
+          savingsSpent={savingsSpent}
+          debtSpent={debtSpent}
+          isEditMode={isEditMode}
+          currency={currency}
+        />
 
+        {/* Category Sections */}
         <UnifiedCategorySection
           title="Income"
           categories={incomeCategories}
           subcategories={allSubs}
           isEditMode={isEditMode}
           getCategorySpent={budget.getCategorySpent}
-          getCategoryPlanned={() => 0}
+          getCategoryPlanned={budget.getCategoryPlanned}
           editValues={editValues}
           onEditChange={onEditChange}
-          prevValues={{}}
+          prevValues={prevValuesMap}
+          currency={currency}
         />
-
         <UnifiedCategorySection
           title="Expenses"
           categories={expenseCategories}
           subcategories={allSubs}
           isEditMode={isEditMode}
           getCategorySpent={budget.getCategorySpent}
-          getCategoryPlanned={() => 0}
+          getCategoryPlanned={budget.getCategoryPlanned}
           editValues={editValues}
           onEditChange={onEditChange}
-          prevValues={{}}
+          prevValues={prevValuesMap}
+          currency={currency}
         />
-
         <UnifiedCategorySection
           title="Savings"
           categories={savingsCategories}
           subcategories={allSubs}
           isEditMode={isEditMode}
           getCategorySpent={budget.getCategorySpent}
-          getCategoryPlanned={() => 0}
+          getCategoryPlanned={budget.getCategoryPlanned}
           editValues={editValues}
           onEditChange={onEditChange}
-          prevValues={{}}
+          prevValues={prevValuesMap}
+          currency={currency}
         />
-
         <UnifiedCategorySection
           title="Debt"
           categories={debtCategories}
           subcategories={allSubs}
           isEditMode={isEditMode}
           getCategorySpent={budget.getCategorySpent}
-          getCategoryPlanned={() => 0}
+          getCategoryPlanned={budget.getCategoryPlanned}
           editValues={editValues}
           onEditChange={onEditChange}
-          prevValues={{}}
+          prevValues={prevValuesMap}
+          currency={currency}
         />
+      </motion.div>
 
-      </div>
+      {/* ── BOTTOM CTA (read mode) ── */}
+      <AnimatePresence>
+        {!isEditMode && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-6 left-0 right-0 px-4 z-40 max-w-3xl mx-auto"
+          >
+            <Button
+              onClick={enterEditMode}
+              className="w-full h-12 text-sm font-semibold gap-2 shadow-lg"
+            >
+              <PencilLine className="w-4 h-4" />
+              Edit Plan
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── BOTTOM SAVE (edit mode) ── */}
+      <AnimatePresence>
+        {isEditMode && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-6 left-0 right-0 px-4 z-40 max-w-3xl mx-auto"
+          >
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full h-12 text-sm font-semibold gap-2 shadow-lg"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving…' : 'Save Plan'}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

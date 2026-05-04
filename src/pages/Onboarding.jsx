@@ -98,7 +98,7 @@ export default function Onboarding() {
           {step === 0 && (
             <div className="space-y-4 text-center">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Cero uses zero-based budgeting — every dollar gets a job before you spend it. 
+                Axiom uses zero-based budgeting — every dollar gets a job before you spend it. 
                 You'll plan your income, assign it to categories, and track every transaction.
               </p>
               <div className="bg-primary/5 rounded-xl p-4 border border-primary/10">

@@ -1,0 +1,49 @@
+{
+  "name": "Transaction",
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "number",
+      "description": "Transaction amount (always positive)"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "income",
+        "expense",
+        "transfer"
+      ],
+      "description": "Transaction type"
+    },
+    "category_id": {
+      "type": "string",
+      "description": "Category ID"
+    },
+    "account_id": {
+      "type": "string",
+      "description": "Account ID"
+    },
+    "to_account_id": {
+      "type": "string",
+      "description": "Destination account for transfers"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Transaction date"
+    },
+    "note": {
+      "type": "string"
+    },
+    "is_shifted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether income was shifted to next month via 25th rule"
+    }
+  },
+  "required": [
+    "amount",
+    "type",
+    "date"
+  ]
+}

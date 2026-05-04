@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, TrendingUp, TrendingDown, Building, Landmark, CreditCard, Banknote, PiggyBank, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAccounts, formatCurrency } from '@/hooks/useBudgetData';
+import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';
 
 const typeIcons = {
@@ -11,6 +12,7 @@ const typeIcons = {
 };
 
 export default function Accounts() {
+  const currency = useCurrency();
   const { data: accounts } = useAccounts();
 
   const assets = accounts.filter(a => a.category === 'asset');
@@ -27,7 +29,7 @@ export default function Accounts() {
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
-          <span className="text-sm font-semibold tabular-nums">{formatCurrency(total)}</span>
+          <span className="text-sm font-semibold tabular-nums">{formatCurrency(total, currency)}</span>
         </div>
         <div className="divide-y divide-border/50">
           {accs.map(acc => {
@@ -52,7 +54,7 @@ export default function Accounts() {
                   "text-sm font-semibold tabular-nums",
                   isLiability ? "text-destructive" : "text-foreground"
                 )}>
-                  {isLiability ? '-' : ''}{formatCurrency(Math.abs(acc.balance || 0))}
+                  {isLiability ? '-' : ''}{formatCurrency(Math.abs(acc.balance || 0), currency)}
                 </span>
               </Link>
             );
@@ -76,10 +78,10 @@ export default function Accounts() {
           "text-4xl font-bold tracking-tight mb-3",
           netWorth >= 0 ? "text-foreground" : "text-destructive"
         )}>
-          {netWorth < 0 ? '-' : ''}{formatCurrency(Math.abs(netWorth))}
+          {netWorth < 0 ? '-' : ''}{formatCurrency(Math.abs(netWorth), currency)}
         </div>
         <div className="text-xs text-muted-foreground">
-          Assets {formatCurrency(totalAssets)} − Liabilities {formatCurrency(totalLiabilities)}
+          Assets {formatCurrency(totalAssets, currency)} − Liabilities {formatCurrency(totalLiabilities, currency)}
         </div>
       </div>
 

@@ -1,0 +1,23 @@
+{
+  "name": "BudgetAllocation",
+  "type": "object",
+  "properties": {
+    "category_id": {
+      "type": "string",
+      "description": "Category ID"
+    },
+    "month": {
+      "type": "string",
+      "description": "Month in YYYY-MM format"
+    },
+    "planned_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Planned budget amount"
+    }
+  },
+  "required": [
+    "category_id",
+    "month"
+  ]
+}

@@ -1,36 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-
-/* ---------------- MOCK DATA ---------------- */
-
-const mockCategories = [
-  { id: 1, name: "Salary", type: "income" },
-  { id: 2, name: "Freelance", type: "income" },
-  { id: 3, name: "Rent", type: "expense" },
-  { id: 4, name: "Groceries", type: "expense" },
-  { id: 5, name: "Savings", type: "savings" },
-  { id: 6, name: "Loan", type: "debt" },
-];
-
-const mockTransactions = [
-  { id: 1, category_id: 1, type: "income", amount: 5000, date: "2026-05-01" },
-  { id: 2, category_id: 3, type: "expense", amount: 1500, date: "2026-05-02" },
-  { id: 3, category_id: 4, type: "expense", amount: 300, date: "2026-05-03" },
-];
-
-const mockAllocations = [
-  { id: 1, category_id: 3, planned_amount: 2000 },
-  { id: 2, category_id: 4, planned_amount: 500 },
-  { id: 3, category_id: 5, planned_amount: 800 },
-  { id: 4, category_id: 6, planned_amount: 400 },
-];
-
-/* ---------------- HOOKS ---------------- */
 
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: async () => mockCategories,
+    queryFn: () => base44.entities.Category.filter({ is_archived: false }),
     initialData: [],
   });
 }
@@ -38,9 +13,7 @@ export function useCategories() {
 export function useAccounts() {
   return useQuery({
     queryKey: ['accounts'],
-    queryFn: async () => [
-      { id: 1, name: "Main Account", balance: 5000 },
-    ],
+    queryFn: () => base44.entities.Account.filter({ is_archived: false }),
     initialData: [],
   });
 }
@@ -49,8 +22,9 @@ export function useTransactions(month) {
   return useQuery({
     queryKey: ['transactions', month],
     queryFn: async () => {
-      if (!month) return mockTransactions;
-      return mockTransactions.filter(t => t.date.startsWith(month));
+      const all = await base44.entities.Transaction.list('-date', 500);
+      if (!month) return all;
+      return all.filter(t => t.date?.startsWith(month));
     },
     initialData: [],
   });
@@ -59,7 +33,7 @@ export function useTransactions(month) {
 export function useAllTransactions() {
   return useQuery({
     queryKey: ['all-transactions'],
-    queryFn: async () => mockTransactions,
+    queryFn: () => base44.entities.Transaction.list('-date', 1000),
     initialData: [],
   });
 }
@@ -67,12 +41,10 @@ export function useAllTransactions() {
 export function useAllocations(month) {
   return useQuery({
     queryKey: ['allocations', month],
-    queryFn: async () => mockAllocations,
+    queryFn: () => base44.entities.BudgetAllocation.filter({ month }),
     initialData: [],
   });
 }
-
-/* ---------------- SUMMARY LOGIC ---------------- */
 
 export function useBudgetSummary(month) {
   const { data: categories } = useCategories();
@@ -82,7 +54,10 @@ export function useBudgetSummary(month) {
   const getCategorySpent = (categoryId) => {
     return transactions
       .filter(t => t.category_id === categoryId)
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+      .reduce((sum, t) => {
+        if (t.type === 'income') return sum + (t.amount || 0);
+        return sum + (t.amount || 0);
+      }, 0);
   };
 
   const getCategoryPlanned = (categoryId) => {
@@ -98,22 +73,47 @@ export function useBudgetSummary(month) {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-  const sumPlannedByType = (type) => {
-    return categories
-      .filter(c => c.type === type)
-      .reduce((sum, c) => sum + getCategoryPlanned(c.id), 0);
-  };
+  const totalPlannedIncome = categories
+    .filter(c => c.type === 'income' && !c.parent_id)
+    .reduce((sum, c) => {
+      const subs = categories.filter(s => s.parent_id === c.id);
+      if (subs.length > 0) {
+        return sum + subs.reduce((s, sub) => s + getCategoryPlanned(sub.id), 0);
+      }
+      return sum + getCategoryPlanned(c.id);
+    }, 0);
 
-  const totalPlannedIncome = sumPlannedByType('income');
-  const totalPlannedExpenses = sumPlannedByType('expense');
-  const totalPlannedSavings = sumPlannedByType('savings');
-  const totalPlannedDebt = sumPlannedByType('debt');
+  const totalPlannedExpenses = categories
+    .filter(c => c.type === 'expense' && !c.parent_id)
+    .reduce((sum, c) => {
+      const subs = categories.filter(s => s.parent_id === c.id);
+      if (subs.length > 0) {
+        return sum + subs.reduce((s, sub) => s + getCategoryPlanned(sub.id), 0);
+      }
+      return sum + getCategoryPlanned(c.id);
+    }, 0);
 
-  const leftToAllocate =
-    totalPlannedIncome -
-    totalPlannedExpenses -
-    totalPlannedSavings -
-    totalPlannedDebt;
+  const totalPlannedSavings = categories
+    .filter(c => c.type === 'savings' && !c.parent_id)
+    .reduce((sum, c) => {
+      const subs = categories.filter(s => s.parent_id === c.id);
+      if (subs.length > 0) {
+        return sum + subs.reduce((s, sub) => s + getCategoryPlanned(sub.id), 0);
+      }
+      return sum + getCategoryPlanned(c.id);
+    }, 0);
+
+  const totalPlannedDebt = categories
+    .filter(c => c.type === 'debt' && !c.parent_id)
+    .reduce((sum, c) => {
+      const subs = categories.filter(s => s.parent_id === c.id);
+      if (subs.length > 0) {
+        return sum + subs.reduce((s, sub) => s + getCategoryPlanned(sub.id), 0);
+      }
+      return sum + getCategoryPlanned(c.id);
+    }, 0);
+
+  const leftToAllocate = totalPlannedIncome - totalPlannedExpenses - totalPlannedSavings - totalPlannedDebt;
 
   return {
     categories,
@@ -131,11 +131,11 @@ export function useBudgetSummary(month) {
   };
 }
 
-/* ---------------- UTIL ---------------- */
-
-export function formatCurrency(amount) {
-  return '$' + Math.abs(amount || 0).toLocaleString('en-US', {
+export function formatCurrency(amount, symbol = '$') {
+  return symbol + Math.abs(amount || 0).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
+
+export { useCurrencyFormatter } from '@/hooks/useCurrency';
